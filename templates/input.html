@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat with AI</title>
+</head>
+<body>
+    <h1>Chat with AI</h1>
+    <div id="chat-box">
+        <div id="chat-history"></div>
+        <input type="text" id="user-input" placeholder="Type your message..." />
+        <button id="send-button">Send</button>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const chatHistory = document.getElementById("chat-history");
+            const userInput = document.getElementById("user-input");
+            const sendButton = document.getElementById("send-button");
+
+            sendButton.addEventListener("click", async () => {
+                const userMessage = userInput.value;
+                chatHistory.innerHTML += `<p>You: ${userMessage}</p>`;
+                
+                const response = await fetch("/send-message", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ text: userMessage }),
+                });
+
+                const responseData = await response.json();
+                const aiMessage = responseData.message;
+
+                chatHistory.innerHTML += `<p>AI: ${aiMessage}</p>`;
+                userInput.value = "";
+            });
+        });
+    </script>
+</body>
+</html>

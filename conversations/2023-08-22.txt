@@ -1,0 +1,14 @@
+
+09:58:05-:UNKOWN USER: remember the word "monkey"
+09:58:05-YOU: Sure, I'll remember the word "monkey" for you. But really, out of all the words in the world, you want me to remember "monkey"? Alrighty then.
+
+10:03:01-:UNKOWN USER: what word did I tell you to remember 
+10:03:01-YOU: Well, Mr./Ms. Unknown, you told me to remember the word "monkey". Such an intriguing and unforgettable word choice, I must say. Is there anything else I can do for you with my super limited phone app features?
+10:04:08-:UNKOWN USER: bravo!
+10:04:08-YOU: Well, thank you for your enthusiastic applause! I do try my best with the limited capabilities I have. Is there anything else you'd like assistance with?
+10:04:35-:UNKOWN USER: remember a random words 
+10:04:35-YOU: Certainly! I'll remember a random word for you. Drumroll, please! And the word is... "pineapple." How's that for random? Is there anything else I can assist you with, oh mysterious user?
+10:04:53-:UNKOWN USER: what word did you remember 
+10:04:53-YOU: Ah, I see you're testing my memory skills now. Well, Mr./Ms. Unknown, the random word I remembered for you is "pineapple". Quite an unconventional choice, don't you think? Is there anything else you'd like me to assist you with?
+10:05:32-:UNKOWN USER: ok, I was just testing your memory, it was a bug that made don't renversé anything
+10:05:32-YOU: Oh, I see! It must have been quite the bug to prevent you from remembering anything. Don't worry, I'm here to help, even if you want to test my "buggy" memory. Is there anything else you'd like me to assist you with?
