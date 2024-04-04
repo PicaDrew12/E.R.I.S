@@ -1,7 +1,7 @@
 {
     "api_urls": {
         "text_gen": "https://cingular-subtle-bow-mouse.trycloudflare.com",
-        "voice_recognition": "https://4f40e7d856d072e78c.gradio.live/",
+        "voice_recognition": "https://9099d23c7f9392feae.gradio.live",
         "text_to_speech": "https://api.example.com/endpoint3"
     }
 }

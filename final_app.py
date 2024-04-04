@@ -936,11 +936,11 @@ def speech_to_text():
 
 
 
-def ai_text_gen(userMessage, character):
+def ai_text_gen(userMessage, character,chatHistory):
     if(character=="TD"):
         character = "TopicDetector"
     elif(character == "AS"):
-        character = "Assistant"
+        character = "Eris"
     else:
         character = "Example"
         
@@ -952,7 +952,7 @@ def ai_text_gen(userMessage, character):
         "Content-Type": "application/json"
     }
 
-    history = []
+    history = chatHistory
 
 
     user_message = userMessage
@@ -1042,7 +1042,7 @@ def main_event():
             print(transcript)
 
             
-            tasks = ai_text_gen(userMessage= transcript,character="TD")
+            tasks = ai_text_gen(userMessage= transcript,character="TD",chatHistory=[])
             print(tasks)
 
             
@@ -1066,7 +1066,7 @@ def main_event():
                 final = transcript + weather_info + date_time_info + internet_results
                 
                 
-                text = ai_text_gen(userMessage=face + ": "+final, character="AS")
+                text = ai_text_gen(userMessage=face + ": "+final, character="AS",chatHistory=history)
                 history.append({"role": "assistant", "content": text})
                 curent_time = datetime.datetime.now().strftime("%H:%M:%S")
                 
