@@ -550,15 +550,32 @@ history = ""
 date_time_info = ""
 #FUNCTIONS
 
-def save_to_history(history):
+def save_to_history(role, content):
     if not os.path.exists("conversations"):
         os.makedirs("conversations")
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     filename = os.path.join("conversations", current_date + ".txt")
     
-    with open(filename, 'a') as file:
+    file_path = filename
+
+    # Load existing JSON data from the file
+    try:
+        with open(file_path, 'r') as file:
+            history = json.load(file)
+    except FileNotFoundError:
+        # If the file doesn't exist, start with an empty list
+        history = []
+
+    # Append new data to the `history` list
+    new_data = {"role": role, "content": content}
+    history.append(new_data)
+
+    # Write the updated `history` list back to the JSON file
+    with open(file_path, 'w') as file:
         json.dump(history, file)
+
+    print("New data appended to", file_path)
 
 
 
@@ -965,7 +982,7 @@ def ai_text_gen(userMessage, character,chatHistory):
 
     response = requests.post(url, headers=headers, json=data, verify=False)
     assistant_message = response.json()['choices'][0]['message']['content']
-    history.append({"role": "assistant", "content": assistant_message})
+    #history.append({"role": "assistant", "content": assistant_message})
     print(assistant_message)
     return assistant_message
 
@@ -1035,7 +1052,8 @@ def main_event():
             audio_file= open("recorded_audio.wav", "rb")
             
             transcript = str(speech_to_text())
-            history.append({"role": "user", "content": transcript})
+            #history.append({"role": "user", "content": transcript})
+            save_to_history(role="user", content=transcript)
             
             message_queue.put(("user", transcript))  # Append user query to the queue
             face = facial_recognition()
@@ -1055,7 +1073,7 @@ def main_event():
                     date_time_info = "date and time: " + str(datetime.datetime.now())
                     print(date_time_info)
                 if "internet-search" in tasks:
-                    internet_results = "[internet results: ]" + str(web_search(transcript)) + "] "
+                    internet_results = "[internet results: " + str(web_search(transcript)) + "] "
                 if "music-play" in tasks:
                     music_thread = threading.Thread(target=play_yt, args=(transcript,))
                     music_thread.start() 
@@ -1067,12 +1085,12 @@ def main_event():
                 
                 
                 text = ai_text_gen(userMessage=face + ": "+final, character="AS",chatHistory=history)
-                history.append({"role": "assistant", "content": text})
+                save_to_history(role="assistant", content=text)
                 curent_time = datetime.datetime.now().strftime("%H:%M:%S")
                 
                 messages = "\n"+ curent_time  + "-"  + face + ":" + transcript + "\n"+ curent_time + "-YOU: " + text
                 print(text)
-                save_to_history(history=history)
+                
                 print(Style.RESET_ALL + "Waiting WOWOWOWOWOOWOWOW")
                 # After generating the AI response
                 

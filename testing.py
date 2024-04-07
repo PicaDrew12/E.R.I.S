@@ -1,63 +1,69 @@
-import requests
 import json
-
-# Function to retrieve the API URL
+import requests
 def retrieve_url(endpoint):
-    url = 'https://eris-api-v1.000webhostapp.com/update_api.php'  # Replace 'your-server-address' with the actual server address
+    url = 'https://eris-api-v1.000webhostapp.com/update_api.php'
     data = {'endpoint': endpoint, 'action': 'retrieve'}
-    response = requests.post(url, data=data)
-    return response.text
-
-# Load API URLs from JSON file
-with open('urls.json', 'r') as file2:
-    data = json.load(file2)
-    first_api_url = data['api_urls']['text_gen']
-
-# Load history from text file
-try:
-    with open('history.txt', 'r') as file:
-        history = json.load(file)
-except FileNotFoundError:
-    history = []
-
-# Construct URL for API call
-endpoint = 'text_gen'
-url = retrieve_url(endpoint) + "/v1/chat/completions"
-print(url)
-
-headers = {"Content-Type": "application/json"}
-
-while True:
-    # If history exists, print previous conversation
-    if history:
-        for entry in history:
-            print(entry['role'] + ': ' + entry['content'])
-
-    # Get user input
-    user_message = input("> ")
     
-    # Append user message to history
+    try:
+        # Attempt to make the API call
+        response = requests.post(url, data=data)
+        response.raise_for_status()  # Raise an error for non-successful status codes
+        retrieved_url = response.text
+
+        # Save the retrieved URL locally in urls.json
+        with open('urls.json', 'r+') as file:
+            urls_data = json.load(file)
+            urls_data['api_urls'][endpoint] = retrieved_url
+            file.seek(0)
+            json.dump(urls_data, file, indent=4)
+
+    except requests.RequestException as e:
+        print(f"Error retrieving URL for '{endpoint}' from API:", e)
+        # If the API call fails, return the URL already saved in the JSON file
+        with open('urls.json', 'r') as file:
+            urls_data = json.load(file)
+            retrieved_url = urls_data['api_urls'].get(endpoint)
+
+            if retrieved_url is None:
+                print(f"No URL found for '{endpoint}' in the JSON file.")
+                return None
+
+    return retrieved_url
+
+
+def ai_text_gen(userMessage, character,chatHistory):
+    if(character=="TD"):
+        character = "TopicDetector"
+    elif(character == "AS"):
+        character = "Eris"
+    else:
+        character = "Example"
+        
+                      
+    first_api_url = retrieve_url(endpoint="text_gen")
+    url = first_api_url+ "/v1/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    history = chatHistory
+
+
+    user_message = userMessage
     history.append({"role": "user", "content": user_message})
-    
-    # Prepare data for API call
     data = {
         "mode": "chat",
-        "character": "Example",
-        "messages": history
+        "character": character,
+        "messages": history,
+        
     }
-    
-    # Make API call
+
     response = requests.post(url, headers=headers, json=data, verify=True)
-    
-    # Get response from API
     assistant_message = response.json()['choices'][0]['message']['content']
-    
-    # Append assistant message to history
-    history.append({"role": "assistant", "content": assistant_message})
-    
-    # Print assistant message
+    #history.append({"role": "assistant", "content": assistant_message})
     print(assistant_message)
-    
-    # Write history to text file
-    with open('history.txt', 'w') as file:
-        json.dump(history, file)
+    return assistant_message
+
+
+ai_text_gen("WHATS THE TIME", "TD",[])  # Testing the function with a sample
