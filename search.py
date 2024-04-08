@@ -14,7 +14,6 @@ def search_text_in_files(directory, text):
                             print(line.strip())
 
 # Example usage
-directory_to_search = r'F:\Github\gradio'  # Replace this with the directory path you want to search
-search_text = 'Colab notebook detected. This cell will run indefinitely so that you can see errors and logs.'  # Replace this with the text you want to search for
+directory_to_search = r'"C:\Users\Andrei\Desktop"'  # Replace this with the directory path you want to search
+search_text = 'flutter'  # Replace this with the text you want to search for
 search_text_in_files(directory_to_search, search_text)
-print("hello")

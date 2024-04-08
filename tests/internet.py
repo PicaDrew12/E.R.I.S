@@ -1,6 +1,43 @@
+
+
+from gradio_client import Client, file
+import json
+import threading
+from colorama import init, Fore, Back, Style
+import random
+import requests
+import datetime
 import requests
 from bs4 import BeautifulSoup
+import openai
+import speech_recognition as sr
+openai.api_key = "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"
+#from elevenlabs import generate, play, set_api_key
+import yt_dlp
+import pyaudio
+import wave
+import keyboard
+import os
+import numpy as np
+import tkinter as tk
+import customtkinter
+from PIL import Image
+import os
+import datetime
+customtkinter.set_appearance_mode("dark")
+import time
+import requests
 import json
+import random
+import queue
+from flask import Flask, render_template,  request, session, jsonify
+import requests
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+import math
+from PIL import Image, ImageOps
+
 
 def retrieve_url(endpoint):
     url = 'https://eris-api-v1.000webhostapp.com/update_api.php'
@@ -31,6 +68,19 @@ def retrieve_url(endpoint):
                 return None
 
     return retrieved_url
+def speech_to_text():
+    from gradio_client import file
+                       
+    first_api_url = retrieve_url(endpoint="voice_recognition") 
+    print(first_api_url)
+    client = Client(first_api_url)
+    result = client.predict(
+            audio_input=file('recorded_audio.wav'),
+            api_name="/predict"
+    )
+    print(result)
+    return result
+
 
 
 def ai_text_gen(userMessage, character,chatHistory):
@@ -38,6 +88,12 @@ def ai_text_gen(userMessage, character,chatHistory):
         character = "TopicDetector"
     elif(character == "AS"):
         character = "Eris"
+    elif(character == "ISQ"):
+        character = "InternetSearchQuery"
+    elif(character == "MTE"):
+        character = "MusicTopicExtractor"
+    elif(character == "ISS"):
+        character = "InternetSumarizer"
     else:
         character = "Example"
         
@@ -60,7 +116,7 @@ def ai_text_gen(userMessage, character,chatHistory):
         "messages": history
     }
 
-    response = requests.post(url, headers=headers, json=data, verify=False)
+    response = requests.post(url, headers=headers, json=data, verify=True)
     assistant_message = response.json()['choices'][0]['message']['content']
     #history.append({"role": "assistant", "content": assistant_message})
     print(assistant_message)
@@ -68,61 +124,86 @@ def ai_text_gen(userMessage, character,chatHistory):
 
 
 
-
-
-
-def web_search(transcript):
-    response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": '''You are a search AI, you will recive a command and you will make a search item from it, for example: USER: "Search  for the best cat food"YOU: "Best cat food"'''},
-                {"role": "user", "content": transcript}
-            ]
-        )
-    text = response['choices'][0]['message']['content']
-    text = ai_text_gen(userMessage=transcript,character="",chatHistory=[])
-    api_key = "AIzaSyDng0fQh-6N6hNXmdgSRmnhhVVA1fk2RNk"
-    search_engine_id = "128169a03d6034a8b"
+def play_yt(transcript):
+    
+    text = ai_text_gen(userMessage=transcript,character="MTE",chatHistory=[])
     print(text)
+    URLS = 'ytsearch:' + text
 
-    def search(query):
-        url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx={search_engine_id}&q={query}"
-        return requests.get(url).json()
+    ydl_opts = {
+        'format': 'm4a/bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'wav',
+        }],
+        'outtmpl': 'test'  # Output filename template including video title and extension
+    }
 
-    def scrape(url):
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, "html.parser")
-            return soup.get_text()
-        return None
-
-    query = text
-    data = search(query)
-
-    if data.get("items"):
-        limit = 1  # Set the desired limit here
-        count = 0
-        for item in data["items"]:
+    def download_audio(url):
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            title = info_dict.get('title', None)  # Get the video title from metadata
+            if title:
+                print("Downloading:", title)
+                ydl.download([url])
+                return title
+            else:
+                print("Failed to get video title.")
+                return None
             
-            contents = scrape(item["link"])
-            if contents:
-                print(".")
-                print(".")
-            count += 1
-            if count >= limit:
-                break
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
-            messages=[
-                {"role": "system", "content": "YOu are a website scraper AI, you will recive web results from a page and you will sumaraize, you will find what the user wants on the webpage, this is what the user wants: "  + transcript +  ", find what the user wants on the webpage"},
-                {"role": "user", "content": str(contents)[:15000]}
-            ]
-        )
-        text = response['choices'][0]['message']['content']
-        print(".")
-        return text
-    else:
-        print("No results found")
+
+    def play_audio_file(file_path):
+        chunk_size = 1024
+
+        # Open the audio file
+        wf = wave.open(file_path, 'rb')
+
+        # Initialize PyAudio
+        p = pyaudio.PyAudio()
+
+        # Open a PyAudio stream
+        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                        channels=wf.getnchannels(),
+                        rate=wf.getframerate(),
+                        output=True)
+
+        # Read data from the audio file and play it in chunks
+        data = wf.readframes(chunk_size)
+
+        # Toggle variable to track pause state
+        paused = False
+
+        while data:
+            if keyboard.is_pressed('space'):  # Check if space key is pressed
+                paused = not paused  # Toggle pause state
+                if paused:
+                    print("Paused.")
+                else:
+                    print("Resuming playback.")
+
+                # Wait until space is released to avoid multiple toggles at once
+                while keyboard.is_pressed('space'):
+                    pass
+
+            if not paused:  # Only write to the stream if not paused
+                stream.write(data)
+                data = wf.readframes(chunk_size)
+
+        # Close the stream and terminate PyAudio
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
+    if __name__ == "__main__":
+        audio_file_path = "test.wav"  # Replace with the path to your audio file
+        download_audio(URLS)
+        play_audio_file(audio_file_path)
+        
 
 
-print(web_search(input("HEY: ")))
+
+
+
+
+
+play_yt("Play Albert NBN Ter")

@@ -676,69 +676,60 @@ def get_weather_data(transcript):
 
 
 def web_search(transcript):
-    response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": '''You are a search AI, you will recive a command and you will make a search item from it, for example: USER: "Search  for the best cat food"YOU: "Best cat food"'''},
-                {"role": "user", "content": transcript}
-            ]
-        )
-    text = response['choices'][0]['message']['content']
-    api_key = "AIzaSyDng0fQh-6N6hNXmdgSRmnhhVVA1fk2RNk"
-    search_engine_id = "128169a03d6034a8b"
-    print(text)
+    
+    import requests
+    from bs4 import BeautifulSoup
+    from googlesearch import search
 
-    def search(query):
-        url = f"https://www.googleapis.com/customsearch/v1?key={api_key}&cx={search_engine_id}&q={query}"
-        return requests.get(url).json()
+    def search_and_save(query, file_name):
+        try:
+            # Perform Google search
+            search_results = search(query, num=20, stop=5)
 
-    def scrape(url):
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, "html.parser")
-            return soup.get_text()
-        return None
+            # Iterate through search results
+            for url in search_results:
+                try:
+                    # Fetch webpage content
+                    response = requests.get(url)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        body_content = soup.find('body').text.replace("\n"," ")
 
-    query = text
-    data = search(query)
+                        # Check if content is not too short
+                        if len(body_content) > 1000:
+                            # Save content to a text file
+                            
+                            with open(file_name, 'w', encoding='utf-8') as file:
+                                file.write(body_content)
+                            print(f"Content saved from {url}")
+                            return body_content
+                        else:
+                            print(f"Content from {url} is too short, trying next URL...")
+                except Exception as e:
+                    print(f"Error accessing {url}: {e}")
+            print("No valid URL found or all content too short.")
+        except Exception as e:
+            print(f"Error searching: {e}")
 
-    if data.get("items"):
-        limit = 1  # Set the desired limit here
-        count = 0
-        for item in data["items"]:
-            
-            contents = scrape(item["link"])
-            if contents:
-                print(".")
-                print(".")
-            count += 1
-            if count >= limit:
-                break
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
-            messages=[
-                {"role": "system", "content": "YOu are a website scraper AI, you will recive web results from a page and you will sumaraize, you will find what the user wants on the webpage, this is what the user wants: "  + transcript +  ", mfound what the iser wants on the webpage"},
-                {"role": "user", "content": str(contents)[:15000]}
-            ]
-        )
-        text = response['choices'][0]['message']['content']
-        print(".")
-        return text
-    else:
-        print("No results found")
-
+    query = ai_text_gen(userMessage=transcript,character="ISQ",chatHistory=[])
+    api_key = "AIzaSyDBvskNDglAiyONlFQ7IsvP3udgid8eKvg"
+    search_engine_id = "94a8e7b21d0cc42e8"
+    
+    
+    
+    contents = search_and_save(query=query, file_name="tests\web.txt")
+    with open("tests\web.txt","w",encoding="utf-8") as f:
+        if contents!= None:
+            f.write(contents)
+    text = ai_text_gen(userMessage=str(contents)[:37432],character="ISS",chatHistory=[])
+    print(".")
+    return text
 
 def play_yt(transcript):
     
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a music AI, you will take the user input and will extract the music name, for example id the user says 'Play Never gonna give you up' you wil type 'Never gonna give you up', if the user asks for a genre or some type of music just reply with that genre, for example if the user says play some rock music you will reply 'Rock music'"},
-            {"role": "user", "content": transcript}
-        ]
-    )
-    text = response['choices'][0]['message']['content']
-    print(text)
+    
+    text = ai_text_gen(userMessage=transcript,character="MTE",chatHistory=[])
+    print("MUSIC EXTRACTED: "+text)
     URLS = 'ytsearch:' + text
 
     ydl_opts = {
@@ -920,11 +911,14 @@ def retrieve_url(endpoint):
         retrieved_url = response.text
 
         # Save the retrieved URL locally in urls.json
+        '''
         with open('urls.json', 'r+') as file:
             urls_data = json.load(file)
             urls_data['api_urls'][endpoint] = retrieved_url
             file.seek(0)
             json.dump(urls_data, file, indent=4)
+        '''
+        
 
     except requests.RequestException as e:
         print(f"Error retrieving URL for '{endpoint}' from API:", e)
@@ -958,6 +952,12 @@ def ai_text_gen(userMessage, character,chatHistory):
         character = "TopicDetector"
     elif(character == "AS"):
         character = "Eris"
+    elif(character == "ISQ"):
+        character = "InternetSearchQuery"
+    elif(character == "ISS"):
+        character = "InternetSumarizer"
+    elif(character == "MTE"):
+        character = "MusicTopicExtractor"
     else:
         character = "Example"
         
@@ -980,7 +980,7 @@ def ai_text_gen(userMessage, character,chatHistory):
         "messages": history
     }
 
-    response = requests.post(url, headers=headers, json=data, verify=False)
+    response = requests.post(url, headers=headers, json=data, verify=True)
     assistant_message = response.json()['choices'][0]['message']['content']
     #history.append({"role": "assistant", "content": assistant_message})
     print(assistant_message)
