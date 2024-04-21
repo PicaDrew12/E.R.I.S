@@ -1,0 +1,1 @@
+pip install gradio-client jsonthreading colorama requests openai pytube opencv-python beautifulsoup4 SpeechRecognition yt-dlp pyaudio keyboard numpy tk customtkinter Pillow Flask comtypes pycaw keras openwakeword
