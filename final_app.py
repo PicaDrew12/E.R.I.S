@@ -1376,7 +1376,7 @@ while True:
     audio = pyaudio.PyAudio()
     mic_stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
     nr=0
-    owwModel =Model(wakeword_models=["F:\Downloads\openWakeWord-main\openWakeWord-main\Hello.onnx"],inference_framework="onnx")
+    owwModel =Model(wakeword_models=["Hello.onnx"],inference_framework="onnx")
 
     n_models = len(owwModel.models.keys())
 
