@@ -6,8 +6,12 @@ import threading
 from colorama import init, Fore, Back, Style
 import random
 import requests
+from openai import OpenAI
+client = OpenAI(api_key="sk-proj-t1OI0ZgZ5dWeAU14l5T9T3BlbkFJwQSbiFPqzkQqd8Knc2aa")
 import datetime
 import requests
+from pytube import YouTube, Search
+import cv2
 from bs4 import BeautifulSoup
 import openai
 import speech_recognition as sr
@@ -30,7 +34,7 @@ import requests
 import json
 import random
 import queue
-from flask import Flask, render_template,  request, session, jsonify
+from flask import Flask, render_template,  request, session, jsonify,Response
 import requests
 from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
@@ -38,44 +42,94 @@ from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import math
 from keras.models import load_model
 from PIL import Image, ImageOps
+import pyaudio
+import numpy as np
+from openwakeword.model import Model
+import argparse
 
+useOpenAI= True
+music_name = "a song"
+class MusicPlayer(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.pause_event = threading.Event()
+        self.stop_song_event = threading.Event()
+        self.pyaudio_instance = pyaudio.PyAudio()
+        self.stream = None
+        self.current_song_length = 0
+        self.current_song_position = 0
 
-import psutil
-def play_yt_from_app(transcript):
-    
-    
-    URLS = 'ytsearch:' + transcript
-
-    ydl_opts = {
-        'format': 'm4a/bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'wav',
-        }],
-        'outtmpl': 'test'  # Output filename template including video title and extension
-    }
-
-    def download_audio(url):
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            title = info_dict.get('title', None)  # Get the video title from metadata
-            if title:
-                print("Downloading:", title)
-                ydl.download([url])
-                return title
+    def run(self):
+        while not self.stop_event.is_set():
+            if not self.queue.empty():
+                song_path = self.queue.get()
+                self.current_song_position = 0
+                self.play_song(song_path)
             else:
-                print("Failed to get video title.")
-                return None
-            
+                time.sleep(0.1)  # Sleep for a short time to avoid busy loop
 
-    def play_audio_file(file_path):
-        is_playing.put(("yes", transcript))
+    def play_song(self, song_path):
+        wf = wave.open(song_path, 'rb')
+        self.current_song_length = wf.getnframes() / wf.getframerate()
+        self.stream = self.pyaudio_instance.open(format=self.pyaudio_instance.get_format_from_width(wf.getsampwidth()),
+                                            channels=wf.getnchannels(),
+                                            rate=wf.getframerate(),
+                                            output=True)
+        data = wf.readframes(1024)
+        while data:
+            if self.stop_song_event.is_set():
+                break
+            if self.pause_event.is_set():
+                time.sleep(0.1)  # Sleep while paused
+                continue
+            self.stream.write(data)
+            data = wf.readframes(1024)
+            self.current_song_position += 1024 / wf.getframerate()
+        self.stream.stop_stream()
+        self.stream.close()
+        wf.close()
+        self.stop_song_event.clear()
+
+    def stop_current_song(self):
+        self.stop_song_event.set()
+
+    def pause(self):
+        self.pause_event.set()
+
+    def resume(self):
+        self.pause_event.clear()
+
+    def stop(self):
+        self.stop_event.set()
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+        self.pyaudio_instance.terminate()
+
+    def get_song_length(self):
+        return self.current_song_length
+
+    def get_current_position(self):
+        return (self.current_song_position / self.current_song_length) * 100 if self.current_song_length > 0 else 0
+
+player = MusicPlayer()
+player.start()
+
+
+
+
+
+def play_audio_file(file_path):
+        import wave
+        
         chunk_size = 1024
 
         # Open the audio file
         wf = wave.open(file_path, 'rb')
 
-        # Initialize PyAudio11111111111111111111111111111
+        # Initialize PyAudio
         p = pyaudio.PyAudio()
 
         # Open a PyAudio stream
@@ -91,7 +145,7 @@ def play_yt_from_app(transcript):
         paused = False
 
         while data:
-            if keyboard.is_pressed('9'):  # Check if space key is pressed
+            if keyboard.is_pressed('space'):  # Check if space key is pressed
                 paused = not paused  # Toggle pause state
                 if paused:
                     print("Paused.")
@@ -99,7 +153,7 @@ def play_yt_from_app(transcript):
                     print("Resuming playback.")
 
                 # Wait until space is released to avoid multiple toggles at once
-                while keyboard.is_pressed('9'):
+                while keyboard.is_pressed('space'):
                     pass
 
             if not paused:  # Only write to the stream if not paused
@@ -107,15 +161,57 @@ def play_yt_from_app(transcript):
                 data = wf.readframes(chunk_size)
 
         # Close the stream and terminate PyAudio
-        is_playing.put(("no", "no"))
         stream.stop_stream()
         stream.close()
         p.terminate()
 
+
+
+import psutil
+def play_yt_from_app(transcript):
+    
+    
+    
+
+    
+
+    def download_audio(url):
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            title = info_dict.get('title', None)  # Get the video title from metadata
+            if title:
+                print("Downloading:", title)
+                ydl.download([url])
+                return title
+            else:
+                print("Failed to get video title.")
+                return None
+            
+
+    
     if __name__ == "__main__":
-        audio_file_path = "test.wav"  # Replace with the path to your audio file
+        
+        
+        URLS = 'ytsearch:' + transcript
+
+        ydl_opts = {
+            'format': 'm4a/bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+            }],
+            'outtmpl': 'test'  # Output filename template including video title and extension
+        }
+        audio_file_path = "test.wav" 
+        
+         # Replace with the path to your audio file
         download_audio(URLS)
-        play_audio_file(audio_file_path)
+        print("PLAYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYNG")
+        
+        player.play_song("test.wav")
+
+        
         
 # Create a shared queue
 message_queue = queue.Queue()
@@ -160,6 +256,87 @@ def network():
         volume.SetMasterVolumeLevel(mapped_volume, None)
         return "VOLUME CHANGED"
     
+    @app.route('/get_volume', methods=['GET'])
+    def get_volume():
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        current_volume = volume.GetMasterVolumeLevelScalar() * 100
+        #print(f"chnaged volume to: {current_volume}")
+        return jsonify({"volume_percent": int(current_volume)})
+
+    @app.route('/set_volume', methods=['POST'])
+    def set_volume():
+        new_volume_percent = request.json.get('volume_percent')
+        print("CHANGED VOLUME: "+ str(new_volume_percent))
+        if new_volume_percent is None:
+            return jsonify({"error": "Volume percent not provided"}), 400
+        
+        new_volume_scalar = new_volume_percent / 100.0
+        
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        
+        # Setting the volume level
+        volume.SetMasterVolumeLevelScalar(new_volume_scalar, None)
+        
+        return jsonify({"message": "Volume set successfully"})
+
+
+    @app.route('/increment_volume', methods=['POST'])
+    def increment_volume():
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        
+        # Get the current volume level
+        current_volume = volume.GetMasterVolumeLevelScalar()
+        
+        # Increment the volume level by 0.01 (equivalent to 1%)
+        new_volume = min(current_volume + 0.01, 1.0)  # Ensure the volume doesn't exceed 100%
+        
+        # Setting the new volume level
+        volume.SetMasterVolumeLevelScalar(new_volume, None)
+        
+        return jsonify({"message": "Volume incremented successfully"})
+    
+    
+    @app.route('/pause_and_resume_music',methods=['POST'])
+    def pause_and_resume_music():
+        isPause = request.json.get("is_pause")
+        if(isPause==True):
+            player.pause()
+        else:
+            player.resume()
+        return jsonify({"message": "PAUSED OR RESUMED SUCCESFULLY"})
+
+
+    @app.route('/changeVolume', methods=['POST'])
+    def changeVolume():
+        is_incrementing = request.json.get("is_incrementing")
+        devices = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        
+        # Get the current volume level
+        current_volume = volume.GetMasterVolumeLevelScalar()
+        changed_volume = 0.01
+        if(is_incrementing==True):
+            changed_volume =0.03
+        else:
+            changed_volume = -0.03
+        
+        # Increment the volume level by 0.01 (equivalent to 1%)
+        new_volume = min(current_volume +changed_volume, 1.0)  # Ensure the volume doesn't exceed 100%
+        
+        # Setting the new volume level
+        volume.SetMasterVolumeLevelScalar(new_volume, None)
+        
+        return jsonify({"message": "Volume incremented successfully"})
+
+
+
     @app.route('/system', methods=['POST'])
     def system_info():
         #uptime
@@ -189,13 +366,85 @@ def network():
     
     @app.route('/play-music', methods=['POST'])
     def play():
+
         data = request.get_json()
         received_text = data.get('text', 'No text received')
+        should_stop_music= False
+        if(received_text=="STOP_ERIS_MUSIC"):
+            print("Stop Message Recived")
+            player.stop_current_song()
+            
+        else:
+            print("NMK")
+            
+            play_yt_from_app(transcript=received_text)
+
+
         
         print("Received text:", received_text)
-        play_yt_from_app(received_text)
+        
         return {'message': 'Text received'}
     
+    @app.route('/send_profile_data',methods=['POST'])
+    def send_profile_data():
+        data = request.json
+        with open('user.json',"w") as file:
+            json.dump(data,file)
+        return 'Hello, World!'
+
+
+    @app.route('/get_profile_data',methods=['POST'])
+    def get_profile_data():
+        
+        with open('user.json',"r") as file:
+            data =json.load(file)
+        print(data)
+        return data
+    @app.route('/camera')
+    def camera():
+        # Render the template with video stream
+        return render_template('camera.html')
+    
+    @app.route('/video_feed')
+    def video_feed():
+        def generate_frames():
+            # Open the webcam
+            cap = cv2.VideoCapture(0)
+            
+            # Check if the webcam is opened successfully
+            if not cap.isOpened():
+                print("Error: Could not open webcam.")
+                return
+            
+            # Loop to continuously capture frames from the webcam
+            while True:
+                # Capture frame-by-frame
+                ret, frame = cap.read()
+                
+                # Check if the frame is captured successfully
+                if not ret:
+                    print("Error: Failed to capture frame.")
+                    break
+                
+                # Resize the frame to reduce size
+                resized_frame = cv2.resize(frame, (0, 0), fx=0.8, fy=0.8)
+                
+                # Encode the resized frame into JPEG format with reduced quality
+                ret, buffer = cv2.imencode('.jpg', resized_frame, [cv2.IMWRITE_JPEG_QUALITY, 40])
+                
+                # Convert the frame to bytes
+                frame_bytes = buffer.tobytes()
+                
+                # Yield the frame bytes with a boundary
+                yield (b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n\r\n')
+            
+            # Release the webcam
+            cap.release()
+        # Return the response with video stream
+        return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
     @app.route('/send-message', methods=['POST'])
     def send_message():
         def save_to_history(history):
@@ -416,7 +665,8 @@ def UI():
                 weather = categorize_weather(weather_condition_text)
                 
                 emotion = random.choice(["happy", "listen", "neutral"])
-                theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +weather + ".png")
+                #theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +weather + ".png")
+                theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +"snow" + ".png")
                 
                 
                 
@@ -479,13 +729,13 @@ def UI():
                     # If the queue is empty, break the loop to allow the UI to be responsive.
                     pass
 
-                self.timeLabel.after(1000,update_ui)
+                self.timeLabel.after(2000,update_ui)
             
             
             def  update_clock():
                 current_time = time.strftime('%H:%M:%S')
                 self.timeLabel.configure(text=current_time)
-                self.after(1000, update_clock)
+                self.after(2000, update_clock)
 
             self.title("CustomTkinter example_background_image.py")
             
@@ -593,49 +843,7 @@ def read_history_from_file():
         print(f"File '{filename}' not found.")
         return []
 
-def play_audio_file(file_path):
-        import wave
-        
-        chunk_size = 1024
 
-        # Open the audio file
-        wf = wave.open(file_path, 'rb')
-
-        # Initialize PyAudio
-        p = pyaudio.PyAudio()
-
-        # Open a PyAudio stream
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                        channels=wf.getnchannels(),
-                        rate=wf.getframerate(),
-                        output=True)
-
-        # Read data from the audio file and play it in chunks
-        data = wf.readframes(chunk_size)
-
-        # Toggle variable to track pause state
-        paused = False
-
-        while data:
-            if keyboard.is_pressed('space'):  # Check if space key is pressed
-                paused = not paused  # Toggle pause state
-                if paused:
-                    print("Paused.")
-                else:
-                    print("Resuming playback.")
-
-                # Wait until space is released to avoid multiple toggles at once
-                while keyboard.is_pressed('space'):
-                    pass
-
-            if not paused:  # Only write to the stream if not paused
-                stream.write(data)
-                data = wf.readframes(chunk_size)
-
-        # Close the stream and terminate PyAudio
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
 
 
 def get_weather_data(transcript):
@@ -711,7 +919,16 @@ def web_search(transcript):
         except Exception as e:
             print(f"Error searching: {e}")
 
-    query = ai_text_gen(userMessage=transcript,character="ISQ",chatHistory=[])
+    
+    response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content":'''You are a search AI, you will recive a command and you will make a search item from it {{user}}: Search for the best cat food {{you}}: best cat food {{user}}: Whats the world record for longest tounge {{you}}: longest tounge world record {{user}}: Search the internet for pie recipies {{you}}: pie recipies {{user}}: Search how to become a better person {{you}}: how to become a better person'''},
+        {"role": "user", "content": transcript},
+        
+    ]
+    )
+    query = response.choices[0].message.content
     api_key = "AIzaSyDBvskNDglAiyONlFQ7IsvP3udgid8eKvg"
     search_engine_id = "94a8e7b21d0cc42e8"
     
@@ -721,85 +938,43 @@ def web_search(transcript):
     with open("tests\web.txt","w",encoding="utf-8") as f:
         if contents!= None:
             f.write(contents)
-    text = ai_text_gen(userMessage=str(contents)[:37432],character="ISS",chatHistory=[])
+    
+    response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content":'''You are a website scraper AI, you will recive web results from a page and you will sumaraize, you will find what the user wants on the webpage, find what the user wants on the webpage. You will get a webpage, you will sumarize it, extract the main points and  a  conclusion. If the website has advice extract that advice.'''},
+        {"role": "user", "content": str(contents)[:37432]},
+        
+    ]
+    )
+    text = response.choices[0].message.content
     print(".")
     return text
 
 def play_yt(transcript):
+    import subprocess
+    response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content":"You are a music AI, you will take the user input and will extract the music name, for example id the user says 'Play Never gonna give you up' you wil type 'Never gonna give you up', if the user asks for a genre or some type of music just reply with that genre, for example if the user says play some rock music you will reply 'Rock music"},
+        {"role": "user", "content": transcript},
+        
+    ]
+    )
+    text = response.choices[0].message.content
+    
+    search_query = text
+    yt = Search(search_query).results[0]
+    
+    music_name = yt.title
+    is_playing.put(("yes", yt.title))
+    stream = yt.streams.get_by_itag(139)
+    stream.download(filename="choosen_music.mp3")
+    subprocess.call(['ffmpeg', '-y', '-i', 'choosen_music.mp3', 'music.wav'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    player.play_song("music.wav")
     
     
-    text = ai_text_gen(userMessage=transcript,character="MTE",chatHistory=[])
-    print("MUSIC EXTRACTED: "+text)
-    URLS = 'ytsearch:' + text
 
-    ydl_opts = {
-        'format': 'm4a/bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'wav',
-        }],
-        'outtmpl': 'test'  # Output filename template including video title and extension
-    }
-
-    def download_audio(url):
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            title = info_dict.get('title', None)  # Get the video title from metadata
-            if title:
-                print("Downloading:", title)
-                ydl.download([url])
-                return title
-            else:
-                print("Failed to get video title.")
-                return None
-            
-
-    def play_audio_file(file_path):
-        chunk_size = 1024
-
-        # Open the audio file
-        wf = wave.open(file_path, 'rb')
-
-        # Initialize PyAudio
-        p = pyaudio.PyAudio()
-
-        # Open a PyAudio stream
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                        channels=wf.getnchannels(),
-                        rate=wf.getframerate(),
-                        output=True)
-
-        # Read data from the audio file and play it in chunks
-        data = wf.readframes(chunk_size)
-
-        # Toggle variable to track pause state
-        paused = False
-
-        while data:
-            if keyboard.is_pressed('space'):  # Check if space key is pressed
-                paused = not paused  # Toggle pause state
-                if paused:
-                    print("Paused.")
-                else:
-                    print("Resuming playback.")
-
-                # Wait until space is released to avoid multiple toggles at once
-                while keyboard.is_pressed('space'):
-                    pass
-
-            if not paused:  # Only write to the stream if not paused
-                stream.write(data)
-                data = wf.readframes(chunk_size)
-
-        # Close the stream and terminate PyAudio
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-
-    if __name__ == "__main__":
-        audio_file_path = "test.wav"  # Replace with the path to your audio file
-        download_audio(URLS)
-        play_audio_file(audio_file_path)
         
 
 def facial_recognition():
@@ -933,23 +1108,17 @@ def retrieve_url(endpoint):
 
     return retrieved_url
 def speech_to_text():
-    from gradio_client import file
-                       
-    first_api_url = retrieve_url(endpoint="voice_recognition") 
-    print(first_api_url)
-    client = Client(first_api_url)
-    result = client.predict(
-            audio_input=file('recorded_audio.wav'),
-            api_name="/predict"
+    
+    audio_file= open("recorded_audio.wav", "rb")
+    transcription = client.audio.transcriptions.create(
+    model="whisper-1", 
+    file=audio_file,language="ro"
     )
-    print(result)
-    return result
+    return transcription.text
 
-
-
-def ai_text_gen(userMessage, character,chatHistory):
+def getCorectCharacter(character):
     if(character=="TD"):
-        character = "TopicDetector"
+        character = '''You are a command output device, you recive a comand and extract the main points.If a sentence is "How is the weather" you will return "weather"If its flip a coin you will return "Coin flip"Here is the full comand list:"asks for weather": "weather-info""asks for date and time": "date-time-info"",if the user wants to make an internet search: internet-search,if the user wants to play music:music-play,if the user wants to end the conversation: "end-convo" for example he says"bye" or "pa"(pa is bye in romanian) edn the conversation imidiatly by outputin "end-convo",if not any of the categories": "urlelated""asks for coin flip": "coin-flip"The user can asks for multiple things at the same time, when that happens put one answer after  another separated by comma'''
     elif(character == "AS"):
         character = "Eris"
     elif(character == "ISQ"):
@@ -960,32 +1129,78 @@ def ai_text_gen(userMessage, character,chatHistory):
         character = "MusicTopicExtractor"
     else:
         character = "Example"
+    return character
+
+
+def ai_text_gen(userMessage, character,chatHistory,useOpenAI):
+    
+    if useOpenAI:
         
-                      
-    first_api_url = retrieve_url(endpoint="text_gen")
-    url = first_api_url+ "/v1/chat/completions"
+        chatHistory = json.dumps(chatHistory)
+        response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": f"You are an AI assistant called Eris, you wi"},
+            {"role": "user", "content": "Who won the world series in 2020?"},
+            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
+            {"role": "user", "content": "Where was it played?"}
+        ]
+        )
+        print(5)
+    else:
+        if(character=="TD"):
+            character = "TopicDetector"
+        elif(character == "AS"):
+            character = "Eris"
+        elif(character == "ISQ"):
+            character = "InternetSearchQuery"
+        elif(character == "ISS"):
+            character = "InternetSumarizer"
+        elif(character == "MTE"):
+            character = "MusicTopicExtractor"
+        else:
+            character = "Example"
+            
+                        
+        first_api_url = retrieve_url(endpoint="text_gen")
+        url = first_api_url+ "/v1/chat/completions"
 
-    headers = {
-        "Content-Type": "application/json"
-    }
+        headers = {
+            "Content-Type": "application/json"
+        }
 
-    history = chatHistory
+        history = chatHistory
 
 
-    user_message = userMessage
-    history.append({"role": "user", "content": user_message})
-    data = {
-        "mode": "chat",
-        "character": character,
-        "messages": history
-    }
+        user_message = userMessage
+        history.append({"role": "user", "content": user_message})
+        data = {
+            "mode": "chat",
+            "character": character,
+            "messages": history
+        }
 
-    response = requests.post(url, headers=headers, json=data, verify=True)
-    assistant_message = response.json()['choices'][0]['message']['content']
-    #history.append({"role": "assistant", "content": assistant_message})
-    print(assistant_message)
-    return assistant_message
+        response = requests.post(url, headers=headers, json=data, verify=True)
+        assistant_message = response.json()['choices'][0]['message']['content']
+        #history.append({"role": "assistant", "content": assistant_message})
+        print(assistant_message)
+        return assistant_message
 
+
+def text_to_speech(transcript):
+    from elevenlabs import play
+    from elevenlabs.client import ElevenLabs
+
+    client = ElevenLabs(
+    api_key="911ccee560fa91aa23ffc0a6560d4c73", # Defaults to ELEVEN_API_KEY
+    )
+
+    audio = client.generate(
+    text=transcript,
+    voice="DeyHFqZysfrSXPzPOaTq",
+    model="eleven_multilingual_v2"
+    )
+    play(audio)
 
 
 def main_event():
@@ -1060,11 +1275,21 @@ def main_event():
             print(transcript)
 
             
-            tasks = ai_text_gen(userMessage= transcript,character="TD",chatHistory=[])
+            
+            response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content":'''You are a command output device, you recive a comand and extract the main points.If a sentence is "How is the weather" you will return "weather"If its flip a coin you will return "Coin flip"Here is the full comand list:"asks for weather": "weather-info""asks for date and time": "date-time-info"",if the user wants to make an internet search: internet-search,if the user wants to play music:music-play,if the user wants to end the conversation: "end-convo",if not any of the categories": "urlelated""asks for coin flip": "coin-flip"The user can asks for multiple things at the same time, when that happens put one answer after  another separated by comma'''},
+                {"role": "user", "content": transcript},
+                
+            ]
+            )
+            tasks = response.choices[0].message.content
             print(tasks)
 
-            
+            music_info = ""
             if "end-convo" in tasks:
+                
                 break
             else:
                 if "weather-info" in tasks:
@@ -1073,18 +1298,31 @@ def main_event():
                     date_time_info = "date and time: " + str(datetime.datetime.now())
                     print(date_time_info)
                 if "internet-search" in tasks:
-                    internet_results = "[internet results: " + str(web_search(transcript)) + "] "
+                    internet_results = "[internet results: " + str(web_search(transcript)) + "] " 
                 if "music-play" in tasks:
                     music_thread = threading.Thread(target=play_yt, args=(transcript,))
                     music_thread.start() 
                 
                 
-                
                 #gggggggggggggggggggggggggggggggggggggggggg
-                final = transcript + weather_info + date_time_info + internet_results
+                final = transcript + weather_info + date_time_info + internet_results+music_info
                 
                 
-                text = ai_text_gen(userMessage=face + ": "+final, character="AS",chatHistory=history)
+                with open("user.json", "r") as user_prefs_file:
+                    user_prefs =json.loads(user_prefs_file.read()) 
+                
+                
+                response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content":"You are an AI home assistant named ERIS, you can search the web, play music(if the user asks you to play music say ok, the music will start playing automaticly) , say the weather etc , along with the user question you will reciv ethe relevant info to respond acordingly, the user may sometimes talk to you in romanian, if so respons in romanian as well make sure to use diacritics.You will speak in a particular way, this is how the user wants you to speak, make sure to respect this religously no matter how silly:"+user_prefs['response_style']+", you and the user have a conversation, the name of your user is: "+ user_prefs['name']+", here is the conversation history: "+json.dumps(read_history_from_file())},
+                    {"role": "user", "content": final},
+                    
+                ]
+                )
+                text = response.choices[0].message.content
+
+
                 save_to_history(role="assistant", content=text)
                 curent_time = datetime.datetime.now().strftime("%H:%M:%S")
                 
@@ -1095,46 +1333,84 @@ def main_event():
                 # After generating the AI response
                 
                 message_queue.put(("AI", text))  # Append AI response to the queue
-                
+                text_to_speech(text)
 
-                time.sleep(5)
+                time.sleep(2)
                 print("NO MORE SLEEPE")
                 play_audio_file("listenn.wav")
                 
                 
                 
                 
+can_detect = True
+
+nr=0
+
+# Get microphone stream
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 16000
+CHUNK = 1280
+audio = pyaudio.PyAudio()
+mic_stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+
+# Load pre-trained openwakeword models
+'''
+if args.model_path != "":
+    owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
+else:
+    owwModel = Model(inference_framework=args.inference_framework)
+
+'''
+owwModel =Model(wakeword_models=["F:\Downloads\openWakeWord-main\openWakeWord-main\Hello.onnx"],inference_framework="onnx")
+
+n_models = len(owwModel.models.keys())
 
 
 while True:
-    
-    import speech_recognition as sr
-    is_listening.put(("no", "listening"))
-    wake_word = ["ok jarvis", "hello", "good evening", "good morning", "good afternoon"]
-    recognizer = sr.Recognizer()
+    # Get microphone stream
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 16000
+    CHUNK = 1280
+    audio = pyaudio.PyAudio()
+    mic_stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    nr=0
+    owwModel =Model(wakeword_models=["F:\Downloads\openWakeWord-main\openWakeWord-main\Hello.onnx"],inference_framework="onnx")
 
-    # Adjust the microphone settings according to your system.
-    with sr.Microphone() as source:
-        play_audio_file("im walls.wav")
-        print("Listening for the wake word...")
+    n_models = len(owwModel.models.keys())
 
-        # Listen for the wake word continuously until it's detected.
+    # Run capture loop continuosly, checking for wakewords
+    if __name__ == "__main__":
+        # Generate output string header
+        print("\n\n")
+        print("#"*100)
+        print("Listening for wakewords...")
+        print("#"*100)
+        print("\n"*(n_models*3))
+        
         while True:
-            audio = recognizer.listen(source)
-            try:
-                # Try to recognize the wake word.
-                detected_phrase = recognizer.recognize_google(audio).lower()
-                print("Detected:", detected_phrase)
-                
-                # Check if any wake word is present in the detected phrase
-                if any(word in detected_phrase for word in wake_word):
-                    print("Wake word detected. Start speaking your command.")
-                    is_listening.put(("yes", "listening"))
-                    play_audio_file("listenn.wav")
-                    main_event()
+            # Get audio
+            audio = np.frombuffer(mic_stream.read(CHUNK), dtype=np.int16)
+
+            # Feed to openWakeWord model
+            prediction = owwModel.predict(audio)
+
+            # Column titles
+            n_spaces = 16
+            
+
+            for mdl in owwModel.prediction_buffer.keys():
+                # Add scores in formatted table
+                scores = list(owwModel.prediction_buffer[mdl])
+                curr_score = format(scores[-1], '.20f').replace("-", "")
+            if(float(curr_score)>0.15):
+                    nr=nr+1
                     break
-            except sr.UnknownValueError:
-                # Ignore if the wake word is not recognized in this iteration.
-                pass
-            except sr.RequestError as e:
-                print("Error occurred while recognizing the wake word; {0}".format(e))
+
+            
+        print("Wake word detected. Start speaking your command.")
+        is_listening.put(("yes", "listening"))
+        play_audio_file("listenn.wav")
+        main_event()
+                    

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: black;
+        }
+        #video-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        #video-stream {
+            width: auto;
+            height: auto;
+            max-width: 150%; /* Adjust the zoom level here */
+            max-height: 150%; /* Adjust the zoom level here */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <img id="video-stream" src="{{ url_for('video_feed') }}" alt="Video Stream">
+    </div>
+
+    <script>
+        var focusTimeout;
+
+        function startFocusTimer() {
+            focusTimeout = setTimeout(stopVideoStream, 120000); // 5000 milliseconds = 5 seconds
+        }
+
+        function stopFocusTimer() {
+            clearTimeout(focusTimeout);
+        }
+
+        function stopVideoStream() {
+            var video = document.getElementById("video-stream");
+            video.src = ""; // Stop the video stream
+        }
+
+        // Start the focus timer when the tab gains focus
+        window.addEventListener("focus", startFocusTimer);
+
+        // Stop the focus timer when the tab loses focus
+        window.addEventListener("blur", stopFocusTimer);
+
+        // Start the focus timer initially
+        startFocusTimer();
+    </script>
+</body>
+</html>

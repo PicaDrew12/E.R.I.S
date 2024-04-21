@@ -1,19 +1,20 @@
+import json
+import datetime
 import os
-import fnmatch
-print("TEST")
-def search_text_in_files(directory, text):
-    directory = os.path.normpath(directory)  # Convert Windows path to Python compatible path
-    for root, dirs, files in os.walk(directory):
-        for filename in files:
-            if filename.endswith('.py'):
-                filepath = os.path.join(root, filename)
-                with open(filepath, 'r', encoding="utf-8") as file:
-                    for line_num, line in enumerate(file, start=1):
-                        if text in line:
-                            print(f"Found '{text}' in file: {filepath}, line {line_num}:")
-                            print(line.strip())
+def read_history_from_file():
+    try:
+        current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        filename = os.path.join("conversations", current_date + ".txt")
+        if os.path.getsize(filename) == 0:
+            return []
+        with open(filename, "r", encoding="utf-8") as file:
+            
+            history = json.load(file)
+        return history
+    except FileNotFoundError:
+        print(f"File '{filename}' not found.")
+        return []
 
-# Example usage
-directory_to_search = r'"C:\Users\Andrei\Desktop"'  # Replace this with the directory path you want to search
-search_text = 'flutter'  # Replace this with the text you want to search for
-search_text_in_files(directory_to_search, search_text)
+
+
+print(json.dumps(read_history_from_file()))
