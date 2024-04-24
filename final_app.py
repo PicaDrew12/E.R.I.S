@@ -1,22 +1,18 @@
 
 
-from gradio_client import Client, file
 import json
 import threading
 from colorama import init, Fore, Back, Style
 import random
 import requests
 from openai import OpenAI
-client = OpenAI(api_key="sk-proj-t1OI0ZgZ5dWeAU14l5T9T3BlbkFJwQSbiFPqzkQqd8Knc2aa")
+OpenAIclient = OpenAI(api_key="sk-proj-aXiwIUlgkF6t25ZhkDDkT3BlbkFJCR8YUXk4j5DtEQLilJUE")
 import datetime
 import requests
 from pytube import YouTube, Search
 import cv2
 from bs4 import BeautifulSoup
 import openai
-import speech_recognition as sr
-openai.api_key = "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"
-#from elevenlabs import generate, play, set_api_key
 import yt_dlp
 import pyaudio
 import wave
@@ -91,6 +87,7 @@ class MusicPlayer(threading.Thread):
         self.stream.close()
         wf.close()
         self.stop_song_event.clear()
+        is_playing.put(("no", ""))
 
     def stop_current_song(self):
         self.stop_song_event.set()
@@ -107,6 +104,7 @@ class MusicPlayer(threading.Thread):
             self.stream.stop_stream()
             self.stream.close()
         self.pyaudio_instance.terminate()
+        is_playing.put(("no", ""))
 
     def get_song_length(self):
         return self.current_song_length
@@ -165,51 +163,35 @@ def play_audio_file(file_path):
         stream.close()
         p.terminate()
 
+def play_yt(transcript,isFromApp=False):
+    import subprocess
+    if(isFromApp==False):
 
+        response = OpenAIclient.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content":"You are a music AI, you will take the user input and will extract the music name, for example id the user says 'Play Never gonna give you up' you wil type 'Never gonna give you up music', if the user asks for a genre or some type of music just reply with that genre, for example if the user says play some rock music you will reply 'Rock music , here is an example: User:Tell me about  Daftpunk and play a song from them, you will reply: Daft punk music"},
+            {"role": "user", "content": transcript},
+            
+        ]
+        )
+        print("Used OpenAI for determining music")
+        text = response.choices[0].message.content
+        print(text)
+    else:
+        text=transcript
+    
+    search_query = text
+    yt = Search(search_query).results[0]
+    
+    music_name = yt.title
+    is_playing.put(("yes", yt.title))
+    stream = yt.streams.get_by_itag(139)
+    stream.download(filename="choosen_music.mp3")
+    subprocess.call(['ffmpeg', '-y', '-i', 'choosen_music.mp3', 'music.wav'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    player.play_song("music.wav")
 
 import psutil
-def play_yt_from_app(transcript):
-    
-    
-    
-
-    
-
-    def download_audio(url):
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(url, download=False)
-            title = info_dict.get('title', None)  # Get the video title from metadata
-            if title:
-                print("Downloading:", title)
-                ydl.download([url])
-                return title
-            else:
-                print("Failed to get video title.")
-                return None
-            
-
-    
-    if __name__ == "__main__":
-        
-        
-        URLS = 'ytsearch:' + transcript
-
-        ydl_opts = {
-            'format': 'm4a/bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-            }],
-            'outtmpl': 'test'  # Output filename template including video title and extension
-        }
-        audio_file_path = "test.wav" 
-        
-         # Replace with the path to your audio file
-        download_audio(URLS)
-        print("PLAYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYNG")
-        
-        player.play_song("test.wav")
 
         
         
@@ -377,7 +359,7 @@ def network():
         else:
             print("NMK")
             
-            play_yt_from_app(transcript=received_text)
+            play_yt(transcript=received_text,isFromApp=True)
 
 
         
@@ -601,7 +583,13 @@ def UI():
                     Tfg = "#FFFFFF"
                     Tbg = "#000101"  
                 else:
-                    bg = "IDK"
+                    bg = "noon"
+                    uFg ="#013661"
+                    uBg ="#005B8F"
+                    aFg = "#001C53"
+                    aBg ="#004186"
+                    Tfg = "#FFFFFF"
+                    Tbg = "#002476"    
                 data = get_weather_data()
                 weather_condition_text2 = data['current']['condition']['text']
                 weather_condition_text = str(weather_condition_text2)
@@ -660,13 +648,13 @@ def UI():
                     elif weather_condition in rain_category:
                         return "showers"
                     else:
-                        return "unknown"
+                        return "clear-day"
 
                 weather = categorize_weather(weather_condition_text)
                 
                 emotion = random.choice(["happy", "listen", "neutral"])
-                #theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +weather + ".png")
-                theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +"snow" + ".png")
+                theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +weather + ".png")
+                #theme_path = ("themes/" +bg+ "-" + emotion+ "-" +  "" +"snow" + ".png")
                 
                 
                 
@@ -724,7 +712,13 @@ def UI():
                     if on == "no":
                         self.Playing.configure(text= "")
                     elif on == "yes":
-                        self.Playing.configure( text= "Playing:" + song)
+                        if len(song) > 10:
+    
+                            truncated_song = song[:33] + "..."
+                        else:
+                            # If the song string is 10 characters or shorter, use the original string
+                            truncated_song = song
+                        self.Playing.configure( text= "Playing:" + truncated_song)
                 except queue.Empty:
                     # If the queue is empty, break the loop to allow the UI to be responsive.
                     pass
@@ -761,7 +755,7 @@ def UI():
            
             self.tempLabel = customtkinter.CTkLabel(self
                                            )
-            self.tempLabel.place(x=120,y = 680)
+            self.tempLabel.place(x=140,y = 680)
             
             self.Playing  = customtkinter.CTkLabel(self
                                            )
@@ -920,7 +914,7 @@ def web_search(transcript):
             print(f"Error searching: {e}")
 
     
-    response = client.chat.completions.create(
+    response = OpenAIclient.chat.completions.create(
     model="gpt-3.5-turbo",
     messages=[
         {"role": "system", "content":'''You are a search AI, you will recive a command and you will make a search item from it {{user}}: Search for the best cat food {{you}}: best cat food {{user}}: Whats the world record for longest tounge {{you}}: longest tounge world record {{user}}: Search the internet for pie recipies {{you}}: pie recipies {{user}}: Search how to become a better person {{you}}: how to become a better person'''},
@@ -939,7 +933,7 @@ def web_search(transcript):
         if contents!= None:
             f.write(contents)
     
-    response = client.chat.completions.create(
+    response = OpenAIclient.chat.completions.create(
     model="gpt-3.5-turbo",
     messages=[
         {"role": "system", "content":'''You are a website scraper AI, you will recive web results from a page and you will sumaraize, you will find what the user wants on the webpage, find what the user wants on the webpage. You will get a webpage, you will sumarize it, extract the main points and  a  conclusion. If the website has advice extract that advice.'''},
@@ -951,240 +945,20 @@ def web_search(transcript):
     print(".")
     return text
 
-def play_yt(transcript):
-    import subprocess
-    response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[
-        {"role": "system", "content":"You are a music AI, you will take the user input and will extract the music name, for example id the user says 'Play Never gonna give you up' you wil type 'Never gonna give you up', if the user asks for a genre or some type of music just reply with that genre, for example if the user says play some rock music you will reply 'Rock music"},
-        {"role": "user", "content": transcript},
-        
-    ]
-    )
-    text = response.choices[0].message.content
-    
-    search_query = text
-    yt = Search(search_query).results[0]
-    
-    music_name = yt.title
-    is_playing.put(("yes", yt.title))
-    stream = yt.streams.get_by_itag(139)
-    stream.download(filename="choosen_music.mp3")
-    subprocess.call(['ffmpeg', '-y', '-i', 'choosen_music.mp3', 'music.wav'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    player.play_song("music.wav")
-    
+
     
 
-        
+ 
 
-def facial_recognition():
-     
-    import cv2
-    import os
-    ''' 
-    def crop_face(image):
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-
-        if len(faces) > 0:
-            x, y, w, h = faces[0]
-            cropped_face = image[y:y+h, x:x+w]
-            return cropped_face
-        else:
-            return image
-
-    def capture_photos(num_photos, save_dir):
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        camera = cv2.VideoCapture(0)
-
-        for i in range(1, num_photos + 1):
-            
-            ret, frame = camera.read()
-            if not ret:
-                print("Failed to capture image")
-                continue
-
-            cropped_frame = crop_face(frame)
-
-            photo_path = os.path.join(save_dir, f"photo_{i}.jpg")
-            cv2.imwrite(photo_path, cropped_frame)
-            print(f"Photo {i} saved: {photo_path}")
-
-        camera.release()
-        cv2.destroyAllWindows()
-
-    if __name__ == "__main__":
-        num_photos = 5
-        save_directory = "captured_photos"
-
-        capture_photos(num_photos, save_directory)
-        
-        
-
-        # Disable scientific notation for clarity
-        np.set_printoptions(suppress=True)
-
-        # Load the model
-        model = load_model("keras_Model.h5", compile=False)
-
-        # Load the labels
-        class_names = open("labels.txt", "r").readlines()
-
-        # Create the array of the right shape to feed into the keras model
-        # The 'length' or number of images you can put into the array is
-        # determined by the first position in the shape tuple, in this case 1
-        data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-
-        # List of photo filenames
-        photo_filenames = ["captured_photos/photo_1.jpg"]
-
-        for filename in photo_filenames:
-            # Replace this with the path to your image
-            image = Image.open(filename).convert("RGB")
-
-            # resizing the image to be at least 224x224 and then cropping from the center
-            size = (224, 224)
-            image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
-
-            # turn the image into a numpy array
-            image_array = np.asarray(image)
-
-            # Normalize the image
-            normalized_image_array = (image_array.astype(np.float32) / 127.5) - 1
-
-            # Load the image into the array
-            data[0] = normalized_image_array
-
-            # Predict the model
-            prediction = model.predict(data)
-            index = np.argmax(prediction)
-            class_name = class_names[index]
-            confidence_score = prediction[0][index]
-
-            # Print prediction and confidence score for each photo
-            print("Photo:", filename)
-            result = class_name[2:6]
-            print(result)
-            print("Confidence Score:", confidence_score)
-            print("--------------------")
-             ''' 
-    return "Coco"
-
-
-
-def retrieve_url(endpoint):
-    url = 'https://eris-api-v1.000webhostapp.com/update_api.php'
-    data = {'endpoint': endpoint, 'action': 'retrieve'}
-    
-    try:
-        # Attempt to make the API call
-        response = requests.post(url, data=data)
-        response.raise_for_status()  # Raise an error for non-successful status codes
-        retrieved_url = response.text
-
-        # Save the retrieved URL locally in urls.json
-        '''
-        with open('urls.json', 'r+') as file:
-            urls_data = json.load(file)
-            urls_data['api_urls'][endpoint] = retrieved_url
-            file.seek(0)
-            json.dump(urls_data, file, indent=4)
-        '''
-        
-
-    except requests.RequestException as e:
-        print(f"Error retrieving URL for '{endpoint}' from API:", e)
-        # If the API call fails, return the URL already saved in the JSON file
-        with open('urls.json', 'r') as file:
-            urls_data = json.load(file)
-            retrieved_url = urls_data['api_urls'].get(endpoint)
-
-            if retrieved_url is None:
-                print(f"No URL found for '{endpoint}' in the JSON file.")
-                return None
-
-    return retrieved_url
 def speech_to_text():
     
     audio_file= open("recorded_audio.wav", "rb")
-    transcription = client.audio.transcriptions.create(
+    transcription = OpenAIclient.audio.transcriptions.create(
     model="whisper-1", 
-    file=audio_file,language="ro"
+    file=audio_file,language="en"
     )
     return transcription.text
 
-def getCorectCharacter(character):
-    if(character=="TD"):
-        character = '''You are a command output device, you recive a comand and extract the main points.If a sentence is "How is the weather" you will return "weather"If its flip a coin you will return "Coin flip"Here is the full comand list:"asks for weather": "weather-info""asks for date and time": "date-time-info"",if the user wants to make an internet search: internet-search,if the user wants to play music:music-play,if the user wants to end the conversation: "end-convo" for example he says"bye" or "pa"(pa is bye in romanian) edn the conversation imidiatly by outputin "end-convo",if not any of the categories": "urlelated""asks for coin flip": "coin-flip"The user can asks for multiple things at the same time, when that happens put one answer after  another separated by comma'''
-    elif(character == "AS"):
-        character = "Eris"
-    elif(character == "ISQ"):
-        character = "InternetSearchQuery"
-    elif(character == "ISS"):
-        character = "InternetSumarizer"
-    elif(character == "MTE"):
-        character = "MusicTopicExtractor"
-    else:
-        character = "Example"
-    return character
-
-
-def ai_text_gen(userMessage, character,chatHistory,useOpenAI):
-    
-    if useOpenAI:
-        
-        chatHistory = json.dumps(chatHistory)
-        response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": f"You are an AI assistant called Eris, you wi"},
-            {"role": "user", "content": "Who won the world series in 2020?"},
-            {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-            {"role": "user", "content": "Where was it played?"}
-        ]
-        )
-        print(5)
-    else:
-        if(character=="TD"):
-            character = "TopicDetector"
-        elif(character == "AS"):
-            character = "Eris"
-        elif(character == "ISQ"):
-            character = "InternetSearchQuery"
-        elif(character == "ISS"):
-            character = "InternetSumarizer"
-        elif(character == "MTE"):
-            character = "MusicTopicExtractor"
-        else:
-            character = "Example"
-            
-                        
-        first_api_url = retrieve_url(endpoint="text_gen")
-        url = first_api_url+ "/v1/chat/completions"
-
-        headers = {
-            "Content-Type": "application/json"
-        }
-
-        history = chatHistory
-
-
-        user_message = userMessage
-        history.append({"role": "user", "content": user_message})
-        data = {
-            "mode": "chat",
-            "character": character,
-            "messages": history
-        }
-
-        response = requests.post(url, headers=headers, json=data, verify=True)
-        assistant_message = response.json()['choices'][0]['message']['content']
-        #history.append({"role": "assistant", "content": assistant_message})
-        print(assistant_message)
-        return assistant_message
 
 
 def text_to_speech(transcript):
@@ -1271,12 +1045,12 @@ def main_event():
             save_to_history(role="user", content=transcript)
             
             message_queue.put(("user", transcript))  # Append user query to the queue
-            face = facial_recognition()
+            
             print(transcript)
 
             
             
-            response = client.chat.completions.create(
+            response = OpenAIclient.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content":'''You are a command output device, you recive a comand and extract the main points.If a sentence is "How is the weather" you will return "weather"If its flip a coin you will return "Coin flip"Here is the full comand list:"asks for weather": "weather-info""asks for date and time": "date-time-info"",if the user wants to make an internet search: internet-search,if the user wants to play music:music-play,if the user wants to end the conversation: "end-convo",if not any of the categories": "urlelated""asks for coin flip": "coin-flip"The user can asks for multiple things at the same time, when that happens put one answer after  another separated by comma'''},
@@ -1312,7 +1086,7 @@ def main_event():
                     user_prefs =json.loads(user_prefs_file.read()) 
                 
                 
-                response = client.chat.completions.create(
+                response = OpenAIclient.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content":"You are an AI home assistant named ERIS, you can search the web, play music(if the user asks you to play music say ok, the music will start playing automaticly) , say the weather etc , along with the user question you will reciv ethe relevant info to respond acordingly, the user may sometimes talk to you in romanian, if so respons in romanian as well make sure to use diacritics.You will speak in a particular way, this is how the user wants you to speak, make sure to respect this religously no matter how silly:"+user_prefs['response_style']+", you and the user have a conversation, the name of your user is: "+ user_prefs['name']+", here is the conversation history: "+json.dumps(read_history_from_file())},
@@ -1326,7 +1100,7 @@ def main_event():
                 save_to_history(role="assistant", content=text)
                 curent_time = datetime.datetime.now().strftime("%H:%M:%S")
                 
-                messages = "\n"+ curent_time  + "-"  + face + ":" + transcript + "\n"+ curent_time + "-YOU: " + text
+                #messages = "\n"+ curent_time  + "-"  + face + ":" + transcript + "\n"+ curent_time + "-YOU: " + text
                 print(text)
                 
                 print(Style.RESET_ALL + "Waiting WOWOWOWOWOOWOWOW")
@@ -1353,15 +1127,6 @@ RATE = 16000
 CHUNK = 1280
 audio = pyaudio.PyAudio()
 mic_stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
-
-# Load pre-trained openwakeword models
-'''
-if args.model_path != "":
-    owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework)
-else:
-    owwModel = Model(inference_framework=args.inference_framework)
-
-'''
 owwModel =Model(wakeword_models=["F:\Downloads\openWakeWord-main\openWakeWord-main\Hello.onnx"],inference_framework="onnx")
 
 n_models = len(owwModel.models.keys())
